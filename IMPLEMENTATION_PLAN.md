@@ -539,4 +539,17 @@ Notes for next agent:
 - `spacy` was bumped to `3.7.5` in `backend/requirements.txt` to resolve a dependency conflict with `fastapi==0.111.0`/`fastapi-cli` (`typer` pin). `python -m spacy download en_core_web_sm` completed (model `en_core_web_sm==3.7.1`).
 - First import/start will download the sentence-transformers model and may emit HuggingFace cache/symlink warnings on Windows; this is expected.
 <!-- Cursor appends here after Sprint 2 -->
+
+### Sprint 2 — Cursor — 2026-04-30
+Status: COMPLETE WITH FAILURES
+Tracks completed: F, G, H, I
+Tracks with failures: []
+Files created: backend/services/job_fetcher.py, backend/services/ats_scorer.py, backend/services/skill_gap.py, backend/data/courses.py, backend/data/question_bank.py
+Tests passing: `cd backend && python -c "from main import app; print('OK')"` ✅, `cd frontend && npm run build` ✅, `uvicorn main:app --reload` starts ✅
+Notes for next agent:
+- Docker is not installed on this machine (`docker` command missing), so DB-backed endpoint flows (register/login, resume upload, ATS score, tracker CRUD, skills gap using resume_id) could not be fully exercised against a live Postgres+Redis stack here.
+- Track F `/api/jobs` implements Redis cache-aside with key `jobs:{query}:{location}:{mode}` (lowercased). If `ADZUNA_APP_ID/ADZUNA_APP_KEY` are missing, it returns `{"detail":"Job API key not configured"}`. If `RAPIDAPI_KEY` is missing, JSearch is skipped silently.
+- Track G `/api/ats/score` is deterministic and uses stored resume embedding for semantic similarity; returns full `ATSResult` shape with 5 dimensions.
+- Track H `/api/skills/gap` + `/api/skills/courses` use `backend/data/courses.py` (real URLs) and a role→skills fallback dict covering the required roles.
+- Track I `/api/tracker` is JWT-protected and user-scoped (ignores optional `user_id` query). `/api/interview/questions` draws 5–8 from the static 60-question bank; `/api/interview/evaluate` returns a fixed stub Evaluation by design for Sprint 2.
 <!-- Antigravity appends here after Sprint 3 -->
