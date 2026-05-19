@@ -54,7 +54,7 @@ services:
       - redis
     volumes:
       - .:/app
-    command: celery -A workers.celery_app beat --loglevel=info
+    command: celery -A workers.celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule
 
 volumes:
   postgres_data:

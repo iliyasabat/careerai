@@ -10,18 +10,24 @@ const AuthPage = () => {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
-  
-  const { login } = useAuth();
+  const [error, setError] = useState('');
+
+  const { login, register } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
     try {
-      await login(email, password);
+      if (isLogin) {
+        await login(email, password);
+      } else {
+        await register(name, email, password);
+      }
       navigate('/dashboard');
     } catch (err) {
-      console.error(err);
+      setError(err.message || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -191,8 +197,12 @@ const AuthPage = () => {
               </label>
             )}
 
-            <button 
-              type="submit" 
+            {error && (
+              <p className="text-sm font-medium text-red-600 ml-1">{error}</p>
+            )}
+
+            <button
+              type="submit"
               disabled={loading || (!isLogin && !termsAccepted)}
               className="w-full bg-primary hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary/20"
             >
