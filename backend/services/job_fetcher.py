@@ -13,7 +13,39 @@ from ml.ner_extractor import extract_skills
 from schemas.jobs import Job
 
 
-_redis = redis.Redis.from_url(settings.redis_url, decode_responses=True)
+import logging
+
+logger = logging.getLogger("careeros.jobs")
+
+_redis = None
+_in_memory_cache: dict[str, str] = {}
+
+try:
+    if settings.redis_url and settings.redis_url.startswith(("redis://", "rediss://", "unix://")):
+        _redis = redis.Redis.from_url(settings.redis_url, decode_responses=True)
+    else:
+        logger.info("Bypassing Redis cache: non-redis scheme.")
+except Exception as e:
+    logger.warning(f"Failed to initialize Redis: {e}. Bypassing to in-memory cache.")
+
+
+def _cache_get(key: str) -> str | None:
+    if _redis:
+        try:
+            return _redis.get(key)
+        except Exception:
+            pass
+    return _in_memory_cache.get(key)
+
+
+def _cache_set(key: str, value: str, expire: int = 1800) -> None:
+    if _redis:
+        try:
+            _redis.setex(key, expire, value)
+            return
+        except Exception:
+            pass
+    _in_memory_cache[key] = value
 
 
 def _cache_key(query: str, location: str, mode: str | None) -> str:
@@ -143,7 +175,7 @@ async def get_jobs(
     resume_embedding: list[float] | None = None,
 ) -> list[Job]:
     key = _cache_key(query, location, mode)
-    cached = _redis.get(key)
+    cached = _cache_get(key)
     if cached:
         raw = json.loads(cached)
         jobs = [Job(**j) for j in raw]
@@ -152,7 +184,7 @@ async def get_jobs(
         jobs.extend(await fetch_adzuna(query, location, mode=mode, experience=experience, salary_min=salary_min))
         jobs.extend(await fetch_jsearch(query, location))
         jobs = _dedupe(jobs)
-        _redis.setex(key, 60 * 30, json.dumps([j.model_dump() for j in jobs]))
+        _cache_set(key, json.dumps([j.model_dump() for j in jobs]), 60 * 30)
 
     if resume_embedding is None:
         return [j.model_copy(update={"match_score": 50}) for j in jobs]
@@ -171,7 +203,7 @@ async def get_jobs(
 
 async def get_job_by_id(job_id: str, *, query: str, location: str, mode: str | None) -> Job | None:
     key = _cache_key(query, location, mode)
-    cached = _redis.get(key)
+    cached = _cache_get(key)
     if not cached:
         return None
     raw = json.loads(cached)
