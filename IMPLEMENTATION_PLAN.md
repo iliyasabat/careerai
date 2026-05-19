@@ -565,3 +565,14 @@ Notes for next agent:
 - Celery worker and beat setups are configured in `backend/docker-compose.yml`.
 - Frontend wiring is completed, `src/api/index.js` uses real Axios calls, and `.env` has been set up with VITE_API_URL.
 - Fixed dependency issues and completed the end-to-end wiring.
+
+### Sprint 3 Post-Fix — Antigravity — 2026-05-19
+Status: COMPLETE (Gemini Migration)
+Tracks completed: Gemini Migration (J, K, L, M refactor)
+Tracks with failures: []
+Files modified: backend/services/resume_curator.py, backend/services/email_generator.py, backend/services/interview_coach.py, backend/workers/follow_up.py, backend/config.py, backend/.env.example, TODOS.md
+Tests passing: `cd backend && python -c "from main import app; print('OK')"` ✅
+Notes for next agent:
+- Replaced Anthropic API with Google Gemini API (`google-generativeai==0.8.3`) across all LLM modules.
+- Hardened JSON output parsing to handle Gemini's markdown fences safely.
+- All original Sprint 3 logic (async orchestration, retries, tone generation, etc.) has been preserved.

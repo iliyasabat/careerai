@@ -1,15 +1,17 @@
 import json
 import asyncio
-from anthropic import Anthropic, APIError
+import google.generativeai as genai
 from fastapi import HTTPException
 from config import settings
 from schemas.interview import Question, Evaluation
 
 async def generate_dynamic_questions(role: str, job_description: str) -> list[dict]:
-    if not settings.anthropic_api_key:
+    if not settings.gemini_api_key:
         return []
         
-    client_ai = Anthropic(api_key=settings.anthropic_api_key)
+    genai.configure(api_key=settings.gemini_api_key)
+    model = genai.GenerativeModel("gemini-2.0-flash")
+    
     system_prompt = """You are an expert technical interviewer. Generate 5 role-specific interview questions based on the provided Job Description.
 Categories should be chosen appropriately (e.g. System Design, Backend, Behavioural).
 Difficulties should be a mix of Easy, Medium, and Hard.
@@ -20,31 +22,31 @@ No markdown, no explanation."""
     try:
         loop = asyncio.get_event_loop()
         def _call():
-            msg = client_ai.messages.create(
-                model="claude-3-5-sonnet-20241022",
-                max_tokens=1500,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_message}]
-            )
-            return msg.content[0].text
+            prompt = f"{system_prompt}\n\n{user_message}"
+            response = model.generate_content(prompt)
+            return response.text
             
         response_text = await loop.run_in_executor(None, _call)
         
         text = response_text.strip()
-        if "```json" in text:
-            text = text.split("```json")[1].split("```")[0].strip()
-        elif "```" in text:
-            text = text.split("```")[1].strip()
+        if text.startswith("```json"):
+            text = text[7:]
+        if text.startswith("```"):
+            text = text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+        text = text.strip()
             
         return json.loads(text)
     except Exception as e:
         return []
 
 async def evaluate_answer(question_id: str, question_text: str, answer_text: str, role: str) -> Evaluation:
-    if not settings.anthropic_api_key:
+    if not settings.gemini_api_key:
         raise HTTPException(status_code=503, detail="AI service not configured")
         
-    client_ai = Anthropic(api_key=settings.anthropic_api_key)
+    genai.configure(api_key=settings.gemini_api_key)
+    model = genai.GenerativeModel("gemini-2.0-flash")
     system_prompt = """You are an expert technical interviewer. Evaluate this answer to the interview question.
 Score the answer on STAR format (Situation/Task/Action/Result) from 0-5.
 Identify which STAR elements are missing or weak.
@@ -56,20 +58,19 @@ Return ONLY a JSON object with: star_score (int 0-5), feedback (str), missing_el
     try:
         loop = asyncio.get_event_loop()
         def _call():
-            msg = client_ai.messages.create(
-                model="claude-3-5-sonnet-20241022",
-                max_tokens=1000,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_message}]
-            )
-            return msg.content[0].text
+            prompt = f"{system_prompt}\n\n{user_message}"
+            response = model.generate_content(prompt)
+            return response.text
             
         response_text = await loop.run_in_executor(None, _call)
         text = response_text.strip()
-        if "```json" in text:
-            text = text.split("```json")[1].split("```")[0].strip()
-        elif "```" in text:
-            text = text.split("```")[1].strip()
+        if text.startswith("```json"):
+            text = text[7:]
+        if text.startswith("```"):
+            text = text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+        text = text.strip()
             
         data = json.loads(text)
         return Evaluation(
@@ -84,20 +85,19 @@ Return ONLY a JSON object with: star_score (int 0-5), feedback (str), missing_el
             strict_prompt = system_prompt + "\nFAILURE REASON: Previous output was not valid JSON. Ensure NO extra text is present."
             loop = asyncio.get_event_loop()
             def _call_retry():
-                msg = client_ai.messages.create(
-                    model="claude-3-5-sonnet-20241022",
-                    max_tokens=1000,
-                    system=strict_prompt,
-                    messages=[{"role": "user", "content": user_message}]
-                )
-                return msg.content[0].text
+                prompt = f"{strict_prompt}\n\n{user_message}"
+                response = model.generate_content(prompt)
+                return response.text
                 
             response_text = await loop.run_in_executor(None, _call_retry)
             text = response_text.strip()
-            if "```json" in text:
-                text = text.split("```json")[1].split("```")[0].strip()
-            elif "```" in text:
-                text = text.split("```")[1].strip()
+            if text.startswith("```json"):
+                text = text[7:]
+            if text.startswith("```"):
+                text = text[3:]
+            if text.endswith("```"):
+                text = text[:-3]
+            text = text.strip()
             data = json.loads(text)
             return Evaluation(
                 question_id=question_id,

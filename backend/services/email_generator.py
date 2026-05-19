@@ -3,8 +3,8 @@ import asyncio
 import uuid
 from datetime import datetime, timedelta, timezone
 from httpx import AsyncClient
-from anthropic import Anthropic, APIError
 from fastapi import HTTPException
+import google.generativeai as genai
 
 from config import settings
 from schemas.email import EmailResult, EmailVariant
@@ -31,29 +31,29 @@ async def fetch_news_hook(company_name: str) -> str:
         pass
     return ""
 
-async def call_claude_email(system_prompt: str, user_message: str) -> dict:
-    if not settings.anthropic_api_key:
+async def call_gemini_email(system_prompt: str, user_message: str) -> dict:
+    if not settings.gemini_api_key:
         raise HTTPException(status_code=503, detail="AI service not configured")
         
-    client_ai = Anthropic(api_key=settings.anthropic_api_key)
+    genai.configure(api_key=settings.gemini_api_key)
+    model = genai.GenerativeModel("gemini-2.0-flash")
     try:
         loop = asyncio.get_event_loop()
         def _call():
-            msg = client_ai.messages.create(
-                model="claude-3-5-sonnet-20241022",
-                max_tokens=1000,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_message}]
-            )
-            return msg.content[0].text
+            prompt = f"{system_prompt}\n\n{user_message}"
+            response = model.generate_content(prompt)
+            return response.text
             
         response_text = await loop.run_in_executor(None, _call)
         
         text = response_text.strip()
-        if "```json" in text:
-            text = text.split("```json")[1].split("```")[0].strip()
-        elif "```" in text:
-            text = text.split("```")[1].strip()
+        if text.startswith("```json"):
+            text = text[7:]
+        if text.startswith("```"):
+            text = text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+        text = text.strip()
             
         return json.loads(text)
     except Exception as e:
@@ -91,7 +91,7 @@ async def generate_email_variants(company_name: str, role_title: str, jd_text: s
 5. Banned words: passionate, hardworking, synergy, leverage, excited, eager, dynamic
 6. Tone: {t} (formal = third-person professional distance, conversational = first-name basis, casual but smart, referral = open by naming the referrer.)
 7. Return a JSON object ONLY with keys: subject (string), body (string). No markdown, no explanation."""
-        tasks.append(call_claude_email(tone_prompt, user_context))
+        tasks.append(call_gemini_email(tone_prompt, user_context))
         
     results = await asyncio.gather(*tasks)
     

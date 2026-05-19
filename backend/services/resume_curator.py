@@ -1,7 +1,6 @@
 import asyncio
 import re
 from fastapi import HTTPException
-from anthropic import Anthropic, APIError
 from schemas.resume import ParsedResume
 from schemas.curator import CuratedBullet, CurationResult
 from ml.ner_extractor import extract_skills
@@ -13,11 +12,14 @@ def get_section_for_bullet(bullet_text: str, sections: dict[str, str]) -> str:
             return sec_name
     return "Experience"
 
+import google.generativeai as genai
+
 async def call_claude_curate(bullet_text: str, keywords: list[str], section_context: str) -> str:
-    if not settings.anthropic_api_key:
+    if not settings.gemini_api_key:
         raise HTTPException(status_code=503, detail="AI service not configured")
     
-    client_ai = Anthropic(api_key=settings.anthropic_api_key)
+    genai.configure(api_key=settings.gemini_api_key)
+    model = genai.GenerativeModel("gemini-2.0-flash")
     
     system_prompt = """You are an expert resume writer. Rewrite the bullet below to be stronger and ATS-optimised.
 Rules:
@@ -33,17 +35,24 @@ Return ONLY the rewritten bullet text. No explanation, no quotes."""
     try:
         loop = asyncio.get_event_loop()
         def _call():
-            msg = client_ai.messages.create(
-                model="claude-3-5-sonnet-20241022",
-                max_tokens=1000,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_message}]
-            )
-            return msg.content[0].text
+            prompt = f"{system_prompt}\n\n{user_message}"
+            response = model.generate_content(prompt)
+            return response.text
         
         rewritten = await loop.run_in_executor(None, _call)
-        return rewritten.strip().strip('"').strip()
-    except APIError:
+        
+        # Hardening output
+        text = rewritten.strip()
+        if text.startswith("```"):
+            lines = text.split("\n")
+            if len(lines) > 1 and lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            text = "\n".join(lines).strip()
+            
+        return text.strip('"').strip()
+    except Exception:
         raise HTTPException(status_code=503, detail="AI service error")
 
 async def curate_bullet(bullet, keywords: list[str], section_context: str) -> CuratedBullet:
@@ -65,7 +74,7 @@ async def curate_bullet(bullet, keywords: list[str], section_context: str) -> Cu
     )
 
 async def curate_resume(parsed_resume: ParsedResume, job_description: str) -> CurationResult:
-    if not settings.anthropic_api_key:
+    if not settings.gemini_api_key:
         raise HTTPException(status_code=503, detail="AI service not configured")
         
     weak_bullets = [b for b in parsed_resume.bullets if not b.is_strong]

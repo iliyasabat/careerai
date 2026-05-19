@@ -6,13 +6,14 @@ from sqlalchemy import select
 from database import async_session
 from models.email_log import EmailLog
 from config import settings
-from anthropic import Anthropic
+import google.generativeai as genai
 
 async def generate_follow_up_content(original_subject: str, original_body: str) -> str:
-    if not settings.anthropic_api_key:
+    if not settings.gemini_api_key:
         return "Just checking in to see if you had a chance to review my previous email. I would love to connect and discuss how I can add value."
         
-    client_ai = Anthropic(api_key=settings.anthropic_api_key)
+    genai.configure(api_key=settings.gemini_api_key)
+    model = genai.GenerativeModel("gemini-2.0-flash")
     system_prompt = """You are a professional cold email writer. Generate a short follow-up email based on the original email sent.
 Rules:
 1. Max 50 words
@@ -23,17 +24,24 @@ Rules:
     user_message = f"Original Subject: {original_subject}\nOriginal Body: {original_body}"
     try:
         def _call():
-            msg = client_ai.messages.create(
-                model="claude-3-5-sonnet-20241022",
-                max_tokens=150,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_message}]
-            )
-            return msg.content[0].text
+            prompt = f"{system_prompt}\n\n{user_message}"
+            response = model.generate_content(prompt)
+            return response.text
             
         loop = asyncio.get_event_loop()
         response_text = await loop.run_in_executor(None, _call)
-        return response_text.strip().strip('"')
+        
+        # Hardening
+        text = response_text.strip()
+        if text.startswith("```"):
+            lines = text.split("\n")
+            if len(lines) > 1 and lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            text = "\n".join(lines).strip()
+            
+        return text.strip('"').strip()
     except Exception:
         return "Just following up on my previous note. Let me know if you have a few minutes to connect."
 

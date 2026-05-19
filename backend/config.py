@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     secret_key: str = "changeme-in-production"
     frontend_url: str = "http://localhost:5173"
 
-    anthropic_api_key: str | None = None
+    gemini_api_key: str | None = None
     adzuna_app_id: str | None = None
     adzuna_app_key: str | None = None
     rapidapi_key: str | None = None

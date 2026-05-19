@@ -12,7 +12,7 @@
 | H     | Cursor     | Skill gap detector + course DB           | ⬜ TODO |
 | I     | Cursor     | Application tracker CRUD + interview Q bank | ⬜ TODO |
 | J     | Antigravity| Resume curator with LLM + hallucination guard | ✅ DONE |
-| K     | Antigravity| Cold email generator (Claude, 3 tones, news hook) | ✅ DONE |
+| K     | Antigravity| Cold email generator (Gemini, 3 tones, news hook) | ✅ DONE |
 | L     | Antigravity| LLM interview evaluator + dynamic Q gen  | ✅ DONE |
 | M     | Antigravity| Celery scheduler + frontend API wiring   | ✅ DONE |
 
@@ -20,7 +20,7 @@
 - Schemas in Section 2 of IMPLEMENTATION_PLAN.md are LOCKED after OpenCode writes them
 - No agent modifies frontend page/component files — only /frontend/src/api/
 - No agent writes Alembic migrations — SQLAlchemy models only (DB recreated from scratch)
-- LLM calls (Claude API via anthropic SDK) only in Tracks J, K, L — not in G, H, I
+- LLM calls (Gemini API via google-generativeai SDK) only in Tracks J, K, L — not in G, H, I
 - All endpoints must match Section 1 API contract exactly
 
 ## Smoke test checklist (all must pass by end of Sprint 3)
