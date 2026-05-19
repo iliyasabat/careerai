@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from httpx import AsyncClient
 from fastapi import HTTPException
 import google.generativeai as genai
+from utils.json_parser import clean_and_parse_json
 
 from config import settings
 from schemas.email import EmailResult, EmailVariant
@@ -46,16 +47,7 @@ async def call_gemini_email(system_prompt: str, user_message: str) -> dict:
             
         response_text = await loop.run_in_executor(None, _call)
         
-        text = response_text.strip()
-        if text.startswith("```json"):
-            text = text[7:]
-        if text.startswith("```"):
-            text = text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
-        text = text.strip()
-            
-        return json.loads(text)
+        return clean_and_parse_json(response_text)
     except Exception as e:
         return {"subject": "Application", "body": f"I would like to apply for the role."}
 

@@ -77,7 +77,7 @@ SKILLS_KEYWORDS = [
     "Jupyter",
     "LangChain",
     "OpenAI",
-    "Anthropic",
+    "Gemini",
     "HuggingFace",
     "FAISS",
     "ChromaDB",

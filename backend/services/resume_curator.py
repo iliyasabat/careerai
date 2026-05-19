@@ -14,7 +14,7 @@ def get_section_for_bullet(bullet_text: str, sections: dict[str, str]) -> str:
 
 import google.generativeai as genai
 
-async def call_claude_curate(bullet_text: str, keywords: list[str], section_context: str) -> str:
+async def call_gemini_curate(bullet_text: str, keywords: list[str], section_context: str) -> str:
     if not settings.gemini_api_key:
         raise HTTPException(status_code=503, detail="AI service not configured")
     
@@ -56,7 +56,7 @@ Return ONLY the rewritten bullet text. No explanation, no quotes."""
         raise HTTPException(status_code=503, detail="AI service error")
 
 async def curate_bullet(bullet, keywords: list[str], section_context: str) -> CuratedBullet:
-    rewritten = await call_claude_curate(bullet.text, keywords, section_context)
+    rewritten = await call_gemini_curate(bullet.text, keywords, section_context)
     
     # Hallucination guard
     original_numbers = set(re.findall(r'\d+', bullet.text + " " + section_context))

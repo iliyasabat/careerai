@@ -1,9 +1,10 @@
 import json
 import asyncio
-import google.generativeai as genai
 from fastapi import HTTPException
 from config import settings
 from schemas.interview import Question, Evaluation
+from utils.json_parser import clean_and_parse_json
+import google.generativeai as genai
 
 async def generate_dynamic_questions(role: str, job_description: str) -> list[dict]:
     if not settings.gemini_api_key:
@@ -28,16 +29,7 @@ No markdown, no explanation."""
             
         response_text = await loop.run_in_executor(None, _call)
         
-        text = response_text.strip()
-        if text.startswith("```json"):
-            text = text[7:]
-        if text.startswith("```"):
-            text = text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
-        text = text.strip()
-            
-        return json.loads(text)
+        return clean_and_parse_json(response_text)
     except Exception as e:
         return []
 
@@ -63,16 +55,7 @@ Return ONLY a JSON object with: star_score (int 0-5), feedback (str), missing_el
             return response.text
             
         response_text = await loop.run_in_executor(None, _call)
-        text = response_text.strip()
-        if text.startswith("```json"):
-            text = text[7:]
-        if text.startswith("```"):
-            text = text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
-        text = text.strip()
-            
-        data = json.loads(text)
+        data = clean_and_parse_json(response_text)
         return Evaluation(
             question_id=question_id,
             star_score=data.get("star_score", 0),
@@ -90,15 +73,7 @@ Return ONLY a JSON object with: star_score (int 0-5), feedback (str), missing_el
                 return response.text
                 
             response_text = await loop.run_in_executor(None, _call_retry)
-            text = response_text.strip()
-            if text.startswith("```json"):
-                text = text[7:]
-            if text.startswith("```"):
-                text = text[3:]
-            if text.endswith("```"):
-                text = text[:-3]
-            text = text.strip()
-            data = json.loads(text)
+            data = clean_and_parse_json(response_text)
             return Evaluation(
                 question_id=question_id,
                 star_score=data.get("star_score", 0),
