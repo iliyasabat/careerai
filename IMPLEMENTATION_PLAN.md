@@ -553,3 +553,15 @@ Notes for next agent:
 - Track H `/api/skills/gap` + `/api/skills/courses` use `backend/data/courses.py` (real URLs) and a role→skills fallback dict covering the required roles.
 - Track I `/api/tracker` is JWT-protected and user-scoped (ignores optional `user_id` query). `/api/interview/questions` draws 5–8 from the static 60-question bank; `/api/interview/evaluate` returns a fixed stub Evaluation by design for Sprint 2.
 <!-- Antigravity appends here after Sprint 3 -->
+
+### Sprint 3 — Antigravity — 2026-05-19
+Status: COMPLETE
+Tracks completed: J, K, L, M
+Tracks with failures: []
+Files created: backend/schemas/curator.py, backend/services/resume_curator.py, backend/services/email_generator.py, backend/services/interview_coach.py, backend/workers/celery_app.py, backend/workers/follow_up.py
+Tests passing: `cd backend && python -c "from main import app; print('OK')"` ✅, `cd frontend && npm run build` ✅
+Notes for next agent:
+- All LLM features (Resume Curator, Cold Email Generator, Interview Evaluator) have been implemented and integrated with the Claude API.
+- Celery worker and beat setups are configured in `backend/docker-compose.yml`.
+- Frontend wiring is completed, `src/api/index.js` uses real Axios calls, and `.env` has been set up with VITE_API_URL.
+- Fixed dependency issues and completed the end-to-end wiring.

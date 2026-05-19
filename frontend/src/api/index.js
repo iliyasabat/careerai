@@ -1,70 +1,132 @@
-import { 
-  mockATSResult, 
-  mockCurationResult, 
-  mockJobs, 
-  mockSkillGap, 
-  mockEmailResult, 
-  mockApplications, 
-  mockInterviewQuestions 
-} from '../mock/data';
+import client from './client';
 
-const delay = (ms) => new Promise(r => setTimeout(r, ms));
+const handleApiError = (err) => {
+  return { error: true, message: err.response?.data?.detail || err.message };
+};
+
+export const loginUser = async (email, password) => {
+  try {
+    const res = await client.post('/api/auth/login', { email, password });
+    return res.data;
+  } catch (err) {
+    return handleApiError(err);
+  }
+};
+
+export const registerUser = async (name, email, password) => {
+  try {
+    const res = await client.post('/api/auth/register', { name, email, password });
+    return res.data;
+  } catch (err) {
+    return handleApiError(err);
+  }
+};
 
 export const uploadResume = async (file) => {
-  await delay(2000);
-  return { id: 'res_123', name: file.name };
+  try {
+    const formData = new FormData(); 
+    formData.append('file', file);
+    const res = await client.post('/api/resume/upload', formData);
+    localStorage.setItem('resume_id', res.data.resume_id);
+    return res.data;
+  } catch (err) {
+    return handleApiError(err);
+  }
 };
 
-export const getATSScore = async (resumeId, jd) => {
-  await delay(1200);
-  return mockATSResult;
+export const getATSScore = async (resumeId, jobDescription) => {
+  try {
+    const res = await client.post('/api/ats/score', { resume_id: resumeId, job_description: jobDescription });
+    return res.data;
+  } catch (err) {
+    return handleApiError(err);
+  }
 };
 
-export const curateResume = async (resumeId, jd) => {
-  await delay(1500);
-  return mockCurationResult;
+export const curateResume = async (resumeId, jobDescription) => {
+  try {
+    const res = await client.post('/api/curator/curate', { resume_id: resumeId, job_description: jobDescription });
+    return res.data;
+  } catch (err) {
+    return handleApiError(err);
+  }
 };
 
 export const searchJobs = async (filters) => {
-  await delay(800);
-  return mockJobs;
+  try {
+    const resumeId = localStorage.getItem('resume_id');
+    const config = resumeId ? { headers: { 'X-Resume-Id': resumeId } } : {};
+    const res = await client.get('/api/jobs', { params: filters, ...config });
+    return res.data;
+  } catch (err) {
+    return handleApiError(err);
+  }
 };
 
-export const getSkillGap = async (resumeId, role) => {
-  await delay(1200);
-  return mockSkillGap;
+export const getSkillGap = async (resumeId, targetRole) => {
+  try {
+    const res = await client.post('/api/skills/gap', { resume_id: resumeId, target_role: targetRole });
+    return res.data;
+  } catch (err) {
+    return handleApiError(err);
+  }
 };
 
 export const generateEmail = async (params) => {
-  await delay(1800);
-  return mockEmailResult;
+  try {
+    const res = await client.post('/api/email/generate', params);
+    return res.data;
+  } catch (err) {
+    return handleApiError(err);
+  }
 };
 
 export const getApplications = async () => {
-  await delay(600);
-  return mockApplications;
+  try {
+    const res = await client.get('/api/tracker');
+    return res.data;
+  } catch (err) {
+    return handleApiError(err);
+  }
 };
 
 export const addApplication = async (data) => {
-  await delay(800);
-  return { id: Math.random().toString(36).substr(2, 9), ...data };
+  try {
+    const res = await client.post('/api/tracker', data);
+    return res.data;
+  } catch (err) {
+    return handleApiError(err);
+  }
 };
 
 export const updateApplication = async (id, data) => {
-  await delay(500);
-  return { id, ...data };
+  try {
+    const res = await client.patch(`/api/tracker/${id}`, data);
+    return res.data;
+  } catch (err) {
+    return handleApiError(err);
+  }
 };
 
-export const getInterviewQuestions = async (role) => {
-  await delay(1200);
-  return mockInterviewQuestions;
+export const getInterviewQuestions = async (role, jobDescription) => {
+  try {
+    const res = await client.post('/api/interview/questions', { role, job_description: jobDescription });
+    return res.data;
+  } catch (err) {
+    return handleApiError(err);
+  }
 };
 
-export const evaluateAnswer = async (questionId, answer) => {
-  await delay(1500);
-  return { 
-    score: 3, 
-    feedback: "Good use of situation context. Consider adding specific metrics to your Action step.",
-    missing: ["Add metrics", "Clarify outcome"]
-  };
+export const evaluateAnswer = async (questionId, questionText, answerText, role) => {
+  try {
+    const res = await client.post('/api/interview/evaluate', { 
+      question_id: questionId, 
+      question_text: questionText, 
+      answer_text: answerText, 
+      role 
+    });
+    return res.data;
+  } catch (err) {
+    return handleApiError(err);
+  }
 };

@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from data.question_bank import QUESTION_BANK, ROLE_TO_CATEGORIES
 from utils.auth import get_current_user
-
+from services.interview_coach import generate_dynamic_questions, evaluate_answer
 
 router = APIRouter(prefix="/interview", tags=["interview"])
 
@@ -26,6 +26,12 @@ class EvaluateRequest(BaseModel):
 
 @router.post("/questions")
 async def questions(payload: QuestionsRequest, _u=Depends(get_current_user)):
+    if payload.job_description:
+        # Use LLM dynamic questions
+        dynamic = await generate_dynamic_questions(payload.role, payload.job_description)
+        if dynamic:
+            return dynamic
+            
     cats = ROLE_TO_CATEGORIES.get(payload.role) or ["System Design", "Backend Engineering", "Behavioural"]
     pool = [q for q in QUESTION_BANK if q["category"] in cats]
     random.shuffle(pool)
@@ -35,11 +41,10 @@ async def questions(payload: QuestionsRequest, _u=Depends(get_current_user)):
 
 @router.post("/evaluate")
 async def evaluate(payload: EvaluateRequest, _u=Depends(get_current_user)):
-    # Stubbed in Sprint 2 by design; Sprint 3 upgrades with LLM evaluation
-    return {
-        "question_id": payload.question_id,
-        "star_score": 3,
-        "feedback": "Good structure, add more concrete impact and metrics.",
-        "missing_elements": ["Result"],
-        "improved_answer": "I clarified the goal, implemented a focused approach, and validated outcomes with measurable impact while collaborating with stakeholders.",
-    }
+    result = await evaluate_answer(
+        question_id=payload.question_id,
+        question_text=payload.question_text,
+        answer_text=payload.answer_text,
+        role=payload.role
+    )
+    return result.model_dump()

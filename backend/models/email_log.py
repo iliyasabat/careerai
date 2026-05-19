@@ -20,4 +20,6 @@ class EmailLog(Base):
     tone: Mapped[str] = mapped_column(String, nullable=False)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     follow_up_date: Mapped[date] = mapped_column(Date, nullable=False)
+    follow_up_sent: Mapped[bool] = mapped_column(default=False)
+    parent_email_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("email_logs.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)

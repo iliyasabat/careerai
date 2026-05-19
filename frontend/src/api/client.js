@@ -5,12 +5,9 @@ const client = axios.create({
 });
 
 client.interceptors.request.use((config) => {
-  const user = localStorage.getItem('careeros_user');
-  if (user) {
-    const { token } = JSON.parse(user);
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+  const token = localStorage.getItem('careeros_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
@@ -19,7 +16,7 @@ client.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('careeros_user');
+      localStorage.clear();
       window.location.href = '/auth';
     }
     return Promise.reject(error);

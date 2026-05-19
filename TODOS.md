@@ -11,10 +11,10 @@
 | G     | Cursor     | ATS Scorer — 5-dimension deterministic  | ⬜ TODO |
 | H     | Cursor     | Skill gap detector + course DB           | ⬜ TODO |
 | I     | Cursor     | Application tracker CRUD + interview Q bank | ⬜ TODO |
-| J     | Antigravity| Resume curator with LLM + hallucination guard | ⬜ TODO |
-| K     | Antigravity| Cold email generator (Claude, 3 tones, news hook) | ⬜ TODO |
-| L     | Antigravity| LLM interview evaluator + dynamic Q gen  | ⬜ TODO |
-| M     | Antigravity| Celery scheduler + frontend API wiring   | ⬜ TODO |
+| J     | Antigravity| Resume curator with LLM + hallucination guard | ✅ DONE |
+| K     | Antigravity| Cold email generator (Claude, 3 tones, news hook) | ✅ DONE |
+| L     | Antigravity| LLM interview evaluator + dynamic Q gen  | ✅ DONE |
+| M     | Antigravity| Celery scheduler + frontend API wiring   | ✅ DONE |
 
 ## Key constraints
 - Schemas in Section 2 of IMPLEMENTATION_PLAN.md are LOCKED after OpenCode writes them
