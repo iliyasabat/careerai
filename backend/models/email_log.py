@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 from sqlalchemy import Date, DateTime, ForeignKey, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
@@ -21,4 +21,4 @@ class EmailLog(Base):
     follow_up_date: Mapped[date] = mapped_column(Date, nullable=False)
     follow_up_sent: Mapped[bool] = mapped_column(default=False)
     parent_email_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("email_logs.id"), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)

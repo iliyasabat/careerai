@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,9 +29,21 @@ from ml import embeddings as _embeddings  # noqa: F401
 from ml import ner_extractor as _ner_extractor  # noqa: F401
 
 
-app = FastAPI(title="CareerOS API")
-
 logger = logging.getLogger("careeros")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    except Exception:
+        # Allow the app to start even if the database isn't reachable yet.
+        logger.exception("Startup DB init failed")
+    yield
+
+
+app = FastAPI(title="CareerOS API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -44,16 +57,6 @@ app.add_middleware(
 @app.get("/health")
 async def health():
     return {"status": "ok"}
-
-
-@app.on_event("startup")
-async def _startup():
-    try:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-    except Exception:
-        # Allow the app to start even if Postgres isn't up yet.
-        logger.exception("Startup DB init failed")
 
 
 app.include_router(auth.router, prefix="/api")
