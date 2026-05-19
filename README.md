@@ -165,19 +165,11 @@ curl -X POST http://localhost:8000/api/auth/register \
 
 ## Remaining gotchas
 
-Non-blocking items that are still worth knowing:
-
 - **spaCy model** — `python -m spacy download en_core_web_sm` is a required manual step
   for local runs (the Dockerfile already does it). Without it the backend fails to
   import.
-- **Alembic** is only half-wired: `alembic.ini` has no `sqlalchemy.url` and there are no
-  migration scripts. The app relies on `create_all` at startup instead.
-- **`backend/main.py`** uses the deprecated `@app.on_event("startup")` hook, and that
-  hook swallows database errors — so the server can appear to start even when the DB is
-  unreachable.
-- **`frontend/package.json`** still carries unused dependencies from the original
-  Google AI Studio template (`express`, `dotenv`, `@types/express`, `tsx`,
-  `@google/genai`) and `frontend/README.md` is leftover template text.
+- **No migration tooling** — the schema is created at startup via `create_all`; there
+  are no migrations, so changing a model means recreating the database.
 
 ---
 
