@@ -4,6 +4,9 @@
 
 backend/.venv/
 backend/.env
+backend/careeros.db
+backend/celerybeat-schedule*
+*.sqlite3
 
 frontend/node_modules/
 frontend/dist/
