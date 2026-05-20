@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import json
-import os
+import logging
 from typing import Any
 
 import httpx
-import redis
 
 from config import settings
 from ml.embeddings import embed_batch, cosine_similarity
@@ -13,38 +12,20 @@ from ml.ner_extractor import extract_skills
 from schemas.jobs import Job
 
 
-import logging
-
 logger = logging.getLogger("careeros.jobs")
 
-_redis = None
+# Simple in-process cache. We dropped Redis along with the Celery worker
+# during the MVP simplification — the cache resets on each backend restart,
+# which is fine for current scale.
 _in_memory_cache: dict[str, str] = {}
-
-try:
-    if settings.redis_url and settings.redis_url.startswith(("redis://", "rediss://", "unix://")):
-        _redis = redis.Redis.from_url(settings.redis_url, decode_responses=True)
-    else:
-        logger.info("Bypassing Redis cache: non-redis scheme.")
-except Exception as e:
-    logger.warning(f"Failed to initialize Redis: {e}. Bypassing to in-memory cache.")
 
 
 def _cache_get(key: str) -> str | None:
-    if _redis:
-        try:
-            return _redis.get(key)
-        except Exception:
-            pass
     return _in_memory_cache.get(key)
 
 
 def _cache_set(key: str, value: str, expire: int = 1800) -> None:
-    if _redis:
-        try:
-            _redis.setex(key, expire, value)
-            return
-        except Exception:
-            pass
+    # `expire` is accepted for API parity; the in-memory cache does not honour TTL.
     _in_memory_cache[key] = value
 
 
