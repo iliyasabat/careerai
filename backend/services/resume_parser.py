@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 import uuid
 from dataclasses import dataclass
@@ -9,6 +10,8 @@ from docx import Document
 
 from ml.embeddings import embed_text
 from ml.ner_extractor import extract_experience_years, extract_skills
+
+logger = logging.getLogger("careeros.resume_parser")
 
 
 _SECTION_HEADINGS = {
@@ -20,7 +23,13 @@ _SECTION_HEADINGS = {
     "certifications": re.compile(r"^\s*(certifications?|licenses?)\s*$", re.IGNORECASE),
 }
 
-_BULLET_RE = re.compile(r"^\s*(?:[-•*]|\d+[.)])\s+(?P<text>.+?)\s*$")
+_BULLET_RE = re.compile(
+    r"^\s*(?:[-•*‣◦▪►◆▶▸▹·▫■□◾◽●○⁃–—]|\d+[.)])\s+(?P<text>.+?)\s*$"
+)
+_BULLET_SECTIONS = {"experience", "projects"}
+_HEADING_LIKE_RE = re.compile(
+    r"^\s*([A-Z][A-Z0-9 &/+,.\-]{2,}|[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,4})\s*$"
+)
 
 _ACTION_VERBS = [
     "Led",
@@ -121,32 +130,63 @@ def _detect_sections(text: str) -> dict[str, str]:
     return {k: "\n".join(v).strip() for k, v in sections.items() if "\n".join(v).strip()}
 
 
-def _parse_bullets(text: str) -> list[ParsedBullet]:
+def _build_bullet(text: str) -> ParsedBullet:
+    first_word = re.split(r"\W+", text.strip(), maxsplit=1)[0].lower() if text else ""
+    action_verb = None
+    if first_word in _ACTION_VERB_SET:
+        action_verb = next((v for v in _ACTION_VERBS if v.lower() == first_word), None)
+
+    has_metric = bool(re.search(r"(\d+%?)|(\b\d+\.\d+\b)", text))
+    # Tighter: strong only when BOTH a strong action verb AND a measurable result.
+    # This keeps the curator busy on most resumes instead of skipping them.
+    is_strong = bool(action_verb) and has_metric
+
+    return ParsedBullet(
+        id=str(uuid.uuid4()),
+        text=text,
+        is_strong=is_strong,
+        action_verb=action_verb,
+        has_metric=has_metric,
+    )
+
+
+def _parse_bullets(text: str, sections: dict[str, str] | None = None) -> list[ParsedBullet]:
     bullets: list[ParsedBullet] = []
+    seen: set[str] = set()
+
     for raw_line in text.splitlines():
         m = _BULLET_RE.match(raw_line)
         if not m:
             continue
         t = m.group("text").strip()
-        first_word = re.split(r"\W+", t.strip(), maxsplit=1)[0].lower() if t else ""
-        action_verb = None
-        if first_word in _ACTION_VERB_SET:
-            # recover canonical capitalization
-            action_verb = next((v for v in _ACTION_VERBS if v.lower() == first_word), None)
+        if not t or t in seen:
+            continue
+        seen.add(t)
+        bullets.append(_build_bullet(t))
 
-        has_metric = bool(re.search(r"(\d+%?)|(\b\d+\.\d+\b)", t))
-        word_count = len(t.split())
-        is_strong = bool(action_verb) and (has_metric or word_count > 10)
+    if bullets or not sections:
+        if not bullets:
+            logger.warning("No bullets parsed from resume — extracted text had no bullet markers")
+        return bullets
 
-        bullets.append(
-            ParsedBullet(
-                id=str(uuid.uuid4()),
-                text=t,
-                is_strong=is_strong,
-                action_verb=action_verb,
-                has_metric=has_metric,
-            )
-        )
+    # Fallback: PDF/DOCX extraction often strips bullet glyphs. Treat each
+    # substantive line inside experience/projects as a candidate bullet.
+    for name, section_text in sections.items():
+        if name.lower() not in _BULLET_SECTIONS:
+            continue
+        for raw_line in section_text.splitlines():
+            line = raw_line.strip()
+            if not line or line in seen:
+                continue
+            if _HEADING_LIKE_RE.match(line):
+                continue
+            word_count = len(line.split())
+            if word_count < 5 or word_count > 60:
+                continue
+            seen.add(line)
+            bullets.append(_build_bullet(line))
+
+    logger.info("Bullet parser fallback recovered %d bullets from section scan", len(bullets))
     return bullets
 
 
@@ -162,8 +202,15 @@ def parse_resume(file_bytes: bytes, filename: str) -> ParsedResume:
     sections = _detect_sections(text)
     skills = extract_skills(text)
     experience_years = extract_experience_years(text)
-    bullets = _parse_bullets(text)
+    bullets = _parse_bullets(text, sections)
     embedding = embed_text(text)
+    logger.info(
+        "Parsed resume %s: %d skills, %d bullets, %.1f years",
+        filename,
+        len(skills),
+        len(bullets),
+        experience_years,
+    )
 
     return ParsedResume(
         resume_id=str(uuid.uuid4()),
