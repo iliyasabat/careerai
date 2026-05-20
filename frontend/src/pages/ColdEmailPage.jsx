@@ -42,7 +42,8 @@ const ColdEmailPage = () => {
       setResult(null);
     } else {
       setResult(res);
-      setActiveTab(form.tone);
+      const available = Object.keys(res.variants || {});
+      setActiveTab(available.includes(form.tone) ? form.tone : (res.tone_used || available[0] || 'formal'));
     }
     setLoading(false);
   };
