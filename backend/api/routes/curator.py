@@ -40,7 +40,15 @@ async def curate(
         embedding=embedding,
     )
 
-    result = await curate_resume(parsed_resume, payload.job_description)
+    try:
+        result = await curate_resume(parsed_resume, payload.job_description)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Resume curation failed: {e}",
+        ) from e
     return result.model_dump()
 
 class AcceptRequest(BaseModel):

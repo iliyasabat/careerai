@@ -50,5 +50,11 @@ async def score_ats(
         embedding=embedding,
     )
 
-    result = score_ats_service(parsed_resume, payload.job_description)
+    try:
+        result = score_ats_service(parsed_resume, payload.job_description)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"ATS scoring failed: {e}",
+        ) from e
     return result.model_dump()

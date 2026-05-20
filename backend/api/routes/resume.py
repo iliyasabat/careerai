@@ -25,7 +25,13 @@ async def upload_resume(
     filename = file.filename or "resume"
     file_bytes = await file.read()
 
-    parsed = parse_resume(file_bytes, filename)
+    try:
+        parsed = parse_resume(file_bytes, filename)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Could not parse resume: {e}",
+        ) from e
 
     resume_row = Resume(
         id=uuid.UUID(parsed.resume_id),

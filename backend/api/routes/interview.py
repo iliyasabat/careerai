@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import random
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from data.question_bank import QUESTION_BANK, ROLE_TO_CATEGORIES
@@ -41,10 +41,18 @@ async def questions(payload: QuestionsRequest, _u=Depends(get_current_user)):
 
 @router.post("/evaluate")
 async def evaluate(payload: EvaluateRequest, _u=Depends(get_current_user)):
-    result = await evaluate_answer(
-        question_id=payload.question_id,
-        question_text=payload.question_text,
-        answer_text=payload.answer_text,
-        role=payload.role
-    )
+    try:
+        result = await evaluate_answer(
+            question_id=payload.question_id,
+            question_text=payload.question_text,
+            answer_text=payload.answer_text,
+            role=payload.role
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Answer evaluation failed: {e}",
+        ) from e
     return result.model_dump()
