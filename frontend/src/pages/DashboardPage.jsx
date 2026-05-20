@@ -1,67 +1,94 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  FileUp, 
-  Search, 
-  Mail, 
-  ChevronRight, 
-  CheckCircle2, 
-  Clock, 
-  BarChart, 
-  Briefcase 
+import {
+  FileUp,
+  Search,
+  Mail,
+  ChevronRight,
+  Briefcase,
+  Target,
+  Trophy,
+  Clock,
+  AlertCircle
 } from 'lucide-react';
-import ScoreGauge from '../components/ScoreGauge';
-import MatchBadge from '../components/MatchBadge';
 import PageHeader from '../components/PageHeader';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { searchJobs, getApplications } from '../api';
+import EmptyState from '../components/EmptyState';
+import { getApplications } from '../api';
+import { useAuth } from '../context/AuthContext';
 
 const DashboardPage = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [jobs, setJobs] = useState([]);
+  const [error, setError] = useState('');
   const [apps, setApps] = useState([]);
 
   useEffect(() => {
     const fetchData = async () => {
-      try {
-        const [jobsRes, appsRes] = await Promise.all([
-          searchJobs(),
-          getApplications()
-        ]);
-        setJobs(jobsRes.slice(0, 3));
-        setApps(appsRes);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
+      const res = await getApplications();
+      if (res?.error) {
+        setError(res.message || 'Failed to load applications');
+        setApps([]);
+      } else {
+        setApps(Array.isArray(res) ? res : []);
       }
+      setLoading(false);
     };
     fetchData();
   }, []);
 
   if (loading) return <LoadingSpinner text="Getting your dashboard ready..." />;
 
+  const hasResume = !!localStorage.getItem('resume_id');
+  const firstName = user?.name?.split(' ')[0] || 'there';
+
+  const countBy = (status) => apps.filter((a) => a.status === status).length;
   const stats = [
-    { label: 'ATS Score', value: '68', sub: 'Last analysed 2 days ago', icon: BarChart, color: 'text-primary' },
-    { label: 'Jobs Matched', value: '6', sub: 'Based on your resume', icon: Search, color: 'text-accent' },
-    { label: 'Emails Sent', value: '3', sub: 'This week', icon: Mail, color: 'text-emerald-500' },
-    { label: 'Applications', value: '8', sub: '2 in Interview stage', icon: Briefcase, color: 'text-amber-500' }
+    { label: 'Applications', value: apps.length,            sub: 'Tracked total',      icon: Briefcase, color: 'text-amber-500' },
+    { label: 'In Interview', value: countBy('Interview'),   sub: 'Active stage',       icon: Clock,     color: 'text-primary' },
+    { label: 'Offers',       value: countBy('Offer'),       sub: 'Live offers',        icon: Trophy,    color: 'text-emerald-500' },
+    { label: 'Rejected',     value: countBy('Rejected'),    sub: 'Closed loops',       icon: Target,    color: 'text-slate-400' }
   ];
 
-  const activities = [
-    { title: 'ATS Score updated — 68/100', time: '2 hours ago', icon: BarChart, color: 'bg-primary' },
-    { title: 'Applied to Razorpay — Backend Engineer', time: '1 day ago', icon: Briefcase, color: 'bg-emerald-500' },
-    { title: 'Cold email sent to Meesho', time: '2 days ago', icon: Mail, color: 'bg-blue-500' },
-    { title: 'Skill gap analysed for Backend Engineer role', time: '3 days ago', icon: BarChart, color: 'bg-amber-500' },
-    { title: 'Resume uploaded — resume_v3.pdf', time: '3 days ago', icon: FileUp, color: 'bg-slate-500' }
-  ];
+  const recent = [...apps]
+    .sort((a, b) => (a.date_applied < b.date_applied ? 1 : -1))
+    .slice(0, 5);
 
   return (
     <div className="space-y-8 pb-12 animate-slide-up">
-      <PageHeader 
-        title="Good morning, Arjun 👋" 
-        subtitle="Here's what's happening with your job search today."
+      <PageHeader
+        title={`Good to see you, ${firstName} 👋`}
+        subtitle="Your job-search workspace. Upload a resume to unlock job matching and ATS scoring."
       />
+
+      {error && (
+        <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-100 rounded-2xl text-sm text-red-700 font-medium">
+          <AlertCircle className="w-5 h-5 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {!hasResume && (
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-6 bg-primary-light border border-primary/10 rounded-3xl">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 bg-primary text-white rounded-xl flex items-center justify-center shrink-0">
+              <FileUp className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-display font-bold text-primary text-lg">Start by uploading your resume</h4>
+              <p className="text-sm text-primary/70 font-medium mt-1">
+                ATS scoring, resume curation, skill-gap analysis and job matching all need it.
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/resume"
+            className="inline-flex items-center gap-2 bg-primary hover:bg-primary-dark text-white px-5 py-2.5 rounded-xl font-bold whitespace-nowrap"
+          >
+            Upload Resume <ChevronRight className="w-4 h-4" />
+          </Link>
+        </div>
+      )}
 
       {/* Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -85,7 +112,7 @@ const DashboardPage = () => {
       <div className="flex flex-wrap gap-4">
         <Link to="/resume" className="flex-1 min-w-[200px] flex items-center justify-center gap-3 bg-primary hover:bg-primary-dark text-white p-4 rounded-xl font-bold transition-all shadow-lg shadow-primary/10">
           <FileUp className="w-5 h-5" />
-          Upload New Resume
+          {hasResume ? 'Re-upload Resume' : 'Upload Resume'}
         </Link>
         <Link to="/jobs" className="flex-1 min-w-[200px] flex items-center justify-center gap-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 p-4 rounded-xl font-bold transition-all">
           <Search className="w-5 h-5" />
@@ -97,76 +124,39 @@ const DashboardPage = () => {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mt-8">
-        {/* Recent Activity */}
-        <div className="lg:col-span-7 bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
-          <h3 className="text-xl font-display font-bold text-slate-900 mb-8">Recent Activity</h3>
-          <div className="space-y-6">
-            {activities.map((act, i) => (
-              <div key={i} className="flex gap-4 relative group">
-                {i !== activities.length - 1 && (
-                  <div className="absolute left-6 top-10 bottom-[-24px] w-0.5 bg-slate-100" />
-                )}
-                <div className={`w-12 h-12 rounded-2xl ${act.color} text-white flex items-center justify-center shrink-0 z-10 group-hover:scale-110 transition-transform`}>
-                  <act.icon className="w-5 h-5" />
-                </div>
-                <div className="flex-1 pt-1 pb-4">
-                  <div className="flex justify-between items-start">
-                    <h4 className="text-sm font-bold text-slate-900">{act.title}</h4>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> {act.time}
-                    </span>
-                  </div>
-                  <div className="mt-2 text-primary font-bold text-xs cursor-pointer hover:underline flex items-center gap-1 invisible group-hover:visible">
-                    View Details <ChevronRight className="w-3 h-3" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+      {/* Recent Applications */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
+        <div className="flex justify-between items-end mb-6">
+          <h3 className="text-xl font-display font-bold text-slate-900">Recent Applications</h3>
+          <Link to="/tracker" className="text-xs font-bold text-primary hover:underline">View All</Link>
         </div>
-
-        {/* Top Matched Jobs */}
-        <div className="lg:col-span-5 space-y-4">
-          <div className="flex justify-between items-end mb-4 px-2">
-            <h3 className="text-xl font-display font-bold text-slate-900">Top Job Matches</h3>
-            <Link to="/jobs" className="text-xs font-bold text-primary hover:underline">View All</Link>
-          </div>
+        {recent.length === 0 ? (
+          <EmptyState
+            icon={Briefcase}
+            title="No applications yet"
+            subtitle="Add your first application in the Tracker to see it show up here."
+            action={{ label: 'Open Tracker', onClick: () => { window.location.href = '/tracker'; } }}
+          />
+        ) : (
           <div className="space-y-3">
-            {jobs.map((job) => (
-              <div key={job.id} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow group cursor-pointer">
-                <div className="flex justify-between items-start mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-lg font-bold group-hover:text-primary transition-colors">
-                      {job.company[0]}
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-900 group-hover:text-primary transition-colors">{job.title}</h4>
-                      <p className="text-xs text-slate-500 font-medium">{job.company}</p>
-                    </div>
+            {recent.map((a) => (
+              <div key={a.id} className="flex items-center justify-between p-4 border border-slate-100 rounded-2xl hover:border-slate-200 transition-colors">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-lg font-bold">
+                    {a.company?.[0] || '?'}
                   </div>
-                  <MatchBadge score={job.match_score} />
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900">{a.role} — {a.company}</h4>
+                    <p className="text-xs text-slate-500 font-medium">{a.date_applied} · {a.days_since} days ago</p>
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-1.5 overflow-hidden h-6">
-                  {job.skills_required.slice(0, 3).map((s, i) => (
-                    <span key={i} className="px-2 py-0.5 bg-slate-50 text-slate-400 border border-slate-100 rounded text-[9px] font-bold uppercase truncate max-w-[80px]">
-                      {s}
-                    </span>
-                  ))}
-                </div>
+                <span className="px-3 py-1 bg-slate-50 text-slate-600 rounded-lg text-xs font-bold border border-slate-100">
+                  {a.status}
+                </span>
               </div>
             ))}
           </div>
-
-          <div className="bg-primary-light border border-primary/10 rounded-3xl p-6 mt-8 relative overflow-hidden group cursor-pointer">
-            <div className="absolute top-[-20px] right-[-20px] w-24 h-24 bg-primary/10 rounded-full blur-2xl group-hover:scale-150 transition-transform" />
-            <h4 className="text-primary font-display font-bold text-lg mb-2">Next Step: Interview Prep</h4>
-            <p className="text-sm text-primary/70 mb-4 font-medium leading-relaxed">Prepare for your Razorpay Backend Engineer interview with role-specific system design questions.</p>
-            <Link to="/interview" className="inline-flex items-center gap-2 text-xs font-bold bg-primary text-white px-4 py-2 rounded-lg hover:translate-x-1 transition-all">
-              Practice Now <ChevronRight className="w-4 h-4" />
-            </Link>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );

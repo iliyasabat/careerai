@@ -10,6 +10,7 @@ import PublicLayout from './layouts/PublicLayout';
 import LandingPage from './pages/LandingPage';
 import AuthPage from './pages/AuthPage';
 import DashboardPage from './pages/DashboardPage';
+import DashboardDemoPage from './pages/DashboardDemoPage';
 import ResumeUploadPage from './pages/ResumeUploadPage';
 import ATSScorePage from './pages/ATSScorePage';
 import CuratorPage from './pages/CuratorPage';
@@ -33,6 +34,7 @@ const router = createBrowserRouter([
     element: <AppLayout />,
     children: [
       { path: 'dashboard', element: <DashboardPage /> },
+      { path: 'dashboard-demo', element: <DashboardDemoPage /> },
       { path: 'resume', element: <ResumeUploadPage /> },
       { path: 'ats', element: <ATSScorePage /> },
       { path: 'curator', element: <CuratorPage /> },
