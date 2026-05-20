@@ -1,7 +1,13 @@
 import client from './client';
 
 const handleApiError = (err) => {
-  return { error: true, message: err.response?.data?.detail || err.message };
+  const status = err.response?.status;
+  const detail = err.response?.data?.detail;
+  const message = detail || err.message || 'Request failed';
+  // Log to browser console so the cause is visible in devtools, not just the UI banner.
+  // eslint-disable-next-line no-console
+  console.error('[API error]', err.config?.method?.toUpperCase(), err.config?.url, status, message, err);
+  return { error: true, status, message };
 };
 
 export const loginUser = async (email, password) => {
