@@ -2,8 +2,12 @@
 
 AI-powered job-search and career platform for students and early-career professionals.
 
-- **Backend** — Python / FastAPI, SQLAlchemy (async), Celery, spaCy + sentence-transformers ML layer, Google Gemini for LLM features.
+- **Backend** — Python / FastAPI, SQLAlchemy async over **SQLite**, spaCy + sentence-transformers ML layer, Google Gemini for LLM features.
 - **Frontend** — React 19 + Vite, React Router, Tailwind CSS, Axios.
+
+The stack is intentionally minimal — one Python process, one Node dev server, one
+SQLite file. No Postgres, no Redis, no Celery. The follow-up email scheduler runs
+inside the FastAPI process as a periodic asyncio task.
 
 ---
 
@@ -14,53 +18,43 @@ frontend/  React + Vite SPA           → talks to the backend over HTTP (Axios)
 backend/   FastAPI app                 → REST API under /api/*
            ├─ api/routes/              route handlers
            ├─ services/                business logic (ATS, jobs, curator, email…)
+           │   └─ follow_up_scheduler  in-process periodic poller
            ├─ ml/                      embeddings (sentence-transformers) + NER (spaCy)
-           ├─ models/                  SQLAlchemy ORM models
-           ├─ workers/                 Celery worker + beat (follow-up emails)
+           ├─ models/                  SQLAlchemy ORM models (single SQLite file)
            └─ data/                    static course DB + interview question bank
 ```
 
 External services (all optional — features degrade gracefully when unset): Gemini,
-Adzuna, JSearch/RapidAPI, Tavily, Redis, Postgres.
+Adzuna, JSearch/RapidAPI, Tavily.
 
 ---
 
 ## Prerequisites
 
-| Tool | Version | Notes |
-|------|---------|-------|
-| Python | 3.11 | 3.12 also works; the Docker image pins 3.11 |
-| Node.js | 18+ | for the frontend |
-| Postgres | 16 | optional — SQLite is the default for local dev |
-| Redis | 7 | optional — the backend falls back to an in-memory cache |
-| Docker + Compose | recent | optional — only for the containerised path |
+| Tool | Version | Check with |
+|------|---------|-----------|
+| Python | 3.11 (3.12 also works) | `python --version` |
+| Node.js | 18 or newer | `node --version` |
+| Git | any recent | `git --version` |
 
-An internet connection is needed on the first backend start: `sentence-transformers`
-downloads the `all-MiniLM-L6-v2` model (~90 MB) from Hugging Face automatically.
+On the **first backend start** the app downloads an ML model (~90 MB) from
+Hugging Face. An internet connection is required that first time.
 
 ---
 
-## Backend — local run (SQLite, no Docker)
-
-The backend defaults to SQLite, so this needs no database server.
+## Backend — run locally
 
 ```bash
 cd backend
 
-# 1. Virtual environment
 python3.11 -m venv .venv
-source .venv/bin/activate            # Windows: .venv\Scripts\activate
+source .venv/bin/activate            # Windows: .venv\Scripts\Activate.ps1
 
-# 2. Dependencies
 pip install -r requirements.txt
+python -m spacy download en_core_web_sm      # REQUIRED — app fails to import without it
 
-# 3. Download the spaCy model (REQUIRED — the app fails to import without it)
-python -m spacy download en_core_web_sm
+cp .env.example .env                  # Windows: copy .env.example .env
 
-# 4. Environment file (the defaults work as-is for local dev)
-cp .env.example .env
-
-# 5. Start the API
 uvicorn main:app --reload --port 8000
 ```
 
@@ -68,8 +62,8 @@ uvicorn main:app --reload --port 8000
 - Health check: <http://localhost:8000/health> → `{"status":"ok"}`
 - Interactive docs: <http://localhost:8000/docs>
 
-Tables are created automatically at startup (`Base.metadata.create_all`) — no migration
-step is needed. The SQLite file is written to `backend/careeros.db`.
+Tables are created automatically at startup (`Base.metadata.create_all`). The SQLite
+file lives at `backend/careeros.db`.
 
 ### Optional API keys
 
@@ -77,55 +71,14 @@ Set these in `backend/.env` to enable the corresponding features:
 
 | Variable | Enables | If unset |
 |----------|---------|----------|
-| `GEMINI_API_KEY` | Resume curator, cold email, interview evaluator | those endpoints return `503` |
-| `ADZUNA_APP_ID` / `ADZUNA_APP_KEY` | Job search (Adzuna) | `/api/jobs` returns `500 "Job API key not configured"` |
+| `GEMINI_API_KEY` | Resume curator, cold email, interview evaluation, follow-up drafting | those endpoints return `503` |
+| `ADZUNA_APP_ID` / `ADZUNA_APP_KEY` | Job search (Adzuna) | search returns a `502` listing the failure unless JSearch is set |
 | `RAPIDAPI_KEY` | Job search (JSearch) | JSearch is silently skipped |
 | `TAVILY_API_KEY` | Company news hook in cold emails | the hook is silently skipped |
+| `FOLLOW_UP_POLL_INTERVAL_SECONDS` | How often the in-process scheduler checks for due follow-ups | defaults to `1800` (30 min) |
 
----
-
-## Backend — Postgres
-
-To use Postgres instead of SQLite, start a database and point `.env` at it (the
-`.env.example` file already contains this URL as a commented-out alternative):
-
-```bash
-docker run -d --name careeros-pg -p 5432:5432 \
-  -e POSTGRES_USER=careeros -e POSTGRES_PASSWORD=careeros -e POSTGRES_DB=careeros \
-  postgres:16
-```
-
-```dotenv
-DATABASE_URL=postgresql+asyncpg://careeros:careeros@localhost:5432/careeros
-```
-
----
-
-## Backend — Docker Compose
-
-`backend/docker-compose.yml` defines five services: `app`, `postgres`, `redis`,
-`celery-worker`, `celery-beat`.
-
-```bash
-cd backend
-cp .env.example .env
-# For the bundled Postgres service, switch DATABASE_URL in .env to the postgresql:// URL.
-docker compose up --build
-```
-
-The whole backend directory is bind-mounted into each container for live reload.
-
----
-
-## Celery (optional — follow-up email scheduler)
-
-Only needed for the daily follow-up reminder task. Requires Redis.
-
-```bash
-cd backend && source .venv/bin/activate
-celery -A workers.celery_app worker --loglevel=info     # worker
-celery -A workers.celery_app beat   --loglevel=info     # scheduler
-```
+> Cold email now requires `GEMINI_API_KEY` — the silent placeholder fallback was
+> removed so failures surface honestly.
 
 ---
 
@@ -135,8 +88,7 @@ celery -A workers.celery_app beat   --loglevel=info     # scheduler
 cd frontend
 npm install
 
-# Point the SPA at the backend (optional — defaults to http://localhost:8000)
-cp .env.example .env
+cp .env.example .env                  # Windows: copy .env.example .env
 
 npm run dev      # dev server at http://localhost:3000
 npm run build    # production build into dist/
@@ -144,6 +96,29 @@ npm run build    # production build into dist/
 
 Register or log in from `/auth`; the JWT returned by the backend is stored in
 `localStorage` and attached to every API request.
+
+### Routes
+
+| Path | What it is |
+|------|------------|
+| `/auth` | Sign in / sign up |
+| `/dashboard` | Live, wired dashboard — counts from the tracker, real greeting, resume-upload prompt |
+| `/dashboard-demo` | Frozen design reference — all data hardcoded; kept for visual documentation |
+| `/resume`, `/ats`, `/curator`, `/jobs`, `/skills`, `/email`, `/interview`, `/tracker` | Feature pages |
+
+---
+
+## Docker
+
+The repo ships a `Dockerfile` for the backend (handy for future deploys). There is no
+`docker-compose.yml` — running the backend locally as described above is the supported
+path.
+
+```bash
+cd backend
+docker build -t careeros-backend .
+docker run --rm -p 8000:8000 --env-file .env -v "$PWD/careeros.db:/app/careeros.db" careeros-backend
+```
 
 ---
 
@@ -169,7 +144,11 @@ curl -X POST http://localhost:8000/api/auth/register \
   for local runs (the Dockerfile already does it). Without it the backend fails to
   import.
 - **No migration tooling** — the schema is created at startup via `create_all`; there
-  are no migrations, so changing a model means recreating the database.
+  are no migrations, so changing a model means deleting `backend/careeros.db` and
+  letting it regenerate.
+- **Follow-up poller is single-process** — it runs inside the FastAPI process. If you
+  ever run multiple uvicorn workers, you'll get duplicate follow-up sends. For the MVP
+  this is fine; for production we'd move to an external scheduler or a row-level lock.
 
 ---
 
@@ -178,6 +157,8 @@ curl -X POST http://localhost:8000/api/auth/register \
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | `OSError: Can't find model 'en_core_web_sm'` | spaCy model missing | `python -m spacy download en_core_web_sm` |
-| API returns 500 on every DB call | `DATABASE_URL` points at a Postgres that is not running | start Postgres or use the SQLite default |
-| `/api/jobs` → 500 "Job API key not configured" | no Adzuna keys | set `ADZUNA_APP_ID` / `ADZUNA_APP_KEY` |
-| AI endpoints return 503 | no `GEMINI_API_KEY` | set it in `backend/.env` |
+| API returns 500 on every DB call | venv not activated or `.env` missing | activate venv; `cp .env.example .env` |
+| `/api/jobs` → 502 "No job providers configured" | no Adzuna or JSearch keys | set `ADZUNA_APP_ID`/`ADZUNA_APP_KEY` or `RAPIDAPI_KEY` |
+| `/api/jobs` → 502 with upstream error message | Adzuna/JSearch returned an error (often bad key or wrong region) | check your keys; the Adzuna endpoint is India-region (`/jobs/in/`) |
+| Cold email → 503 "AI service not configured" | no `GEMINI_API_KEY` | set it in `backend/.env` |
+| Logged in but bounced to `/auth` on every action | backend not running, or wrong `VITE_API_URL` | start the backend; ensure `frontend/.env` points at the right URL |
