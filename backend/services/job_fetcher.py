@@ -181,8 +181,33 @@ async def get_jobs(
         jobs = [Job(**j) for j in raw]
     else:
         jobs = []
-        jobs.extend(await fetch_adzuna(query, location, mode=mode, experience=experience, salary_min=salary_min))
-        jobs.extend(await fetch_jsearch(query, location))
+        errors: list[str] = []
+        adzuna_configured = bool(settings.adzuna_app_id and settings.adzuna_app_key)
+        jsearch_configured = bool(settings.rapidapi_key)
+
+        if not adzuna_configured and not jsearch_configured:
+            raise RuntimeError(
+                "No job providers configured. Set ADZUNA_APP_ID/ADZUNA_APP_KEY "
+                "or RAPIDAPI_KEY in backend/.env."
+            )
+
+        if adzuna_configured:
+            try:
+                jobs.extend(await fetch_adzuna(query, location, mode=mode, experience=experience, salary_min=salary_min))
+            except Exception as e:
+                logger.warning("Adzuna failed: %s", e)
+                errors.append(f"adzuna ({type(e).__name__}): {e}")
+
+        if jsearch_configured:
+            try:
+                jobs.extend(await fetch_jsearch(query, location))
+            except Exception as e:
+                logger.warning("JSearch failed: %s", e)
+                errors.append(f"jsearch ({type(e).__name__}): {e}")
+
+        if not jobs and errors:
+            raise RuntimeError("All configured job providers failed — " + "; ".join(errors))
+
         jobs = _dedupe(jobs)
         _cache_set(key, json.dumps([j.model_dump() for j in jobs]), 60 * 30)
 

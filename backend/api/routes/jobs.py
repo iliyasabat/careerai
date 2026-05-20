@@ -45,7 +45,9 @@ async def list_jobs(
             resume_embedding=resume_embedding,
         )
     except RuntimeError as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Job search failed: {e}") from e
 
     return [j.model_dump() for j in jobs]
 
