@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -28,6 +29,7 @@ from api.routes import (
 from config import settings
 from ml import embeddings as _embeddings  # noqa: F401
 from ml import ner_extractor as _ner_extractor  # noqa: F401
+from services.follow_up_scheduler import follow_up_poll_loop
 
 
 logger = logging.getLogger("careeros")
@@ -41,7 +43,16 @@ async def lifespan(app: FastAPI):
     except Exception:
         # Allow the app to start even if the database isn't reachable yet.
         logger.exception("Startup DB init failed")
-    yield
+
+    poll_task = asyncio.create_task(follow_up_poll_loop())
+    try:
+        yield
+    finally:
+        poll_task.cancel()
+        try:
+            await poll_task
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(title="CareerOS API", lifespan=lifespan)
