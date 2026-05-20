@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -12,6 +13,8 @@ from models.resume import Resume
 from services.skill_gap import detect_gap, get_courses
 from utils.auth import get_current_user
 
+
+logger = logging.getLogger("careeros.skills")
 
 router = APIRouter(prefix="/skills", tags=["skills"])
 
@@ -31,7 +34,16 @@ async def gap(payload: SkillGapRequest, db: AsyncSession = Depends(get_db), _u=D
     res = await db.execute(select(Resume.parsed_json).where(Resume.id == rid))
     parsed = res.scalar_one_or_none() or {}
     skills = parsed.get("skills", [])
-    result = detect_gap(skills, payload.target_role)
+    try:
+        result = await detect_gap(skills, payload.target_role)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Skill-gap detection failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Skill-gap detection failed: {e}",
+        ) from e
     return result.model_dump()
 
 
