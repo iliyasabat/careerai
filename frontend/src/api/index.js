@@ -52,11 +52,17 @@ export const curateResume = async (resumeId, jobDescription) => {
   }
 };
 
-export const searchJobs = async (filters) => {
+export const searchJobs = async (filters = {}) => {
   try {
     const resumeId = localStorage.getItem('resume_id');
+    const params = {};
+    if (filters.title) params.query = filters.title;
+    if (filters.location) params.location = filters.location;
+    if (filters.mode && !filters.mode.toLowerCase().startsWith('any')) params.mode = filters.mode;
+    if (filters.experience && !filters.experience.toLowerCase().startsWith('any')) params.experience = filters.experience;
+    if (filters.minSalary) params.salary_min = filters.minSalary;
     const config = resumeId ? { headers: { 'X-Resume-Id': resumeId } } : {};
-    const res = await client.get('/api/jobs', { params: filters, ...config });
+    const res = await client.get('/api/jobs', { params, ...config });
     return res.data;
   } catch (err) {
     return handleApiError(err);
