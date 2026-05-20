@@ -46,10 +46,12 @@ async def call_gemini_email(system_prompt: str, user_message: str) -> dict:
             return response.text
             
         response_text = await loop.run_in_executor(None, _call)
-        
+
         return clean_and_parse_json(response_text)
+    except HTTPException:
+        raise
     except Exception as e:
-        return {"subject": "Application", "body": f"I would like to apply for the role."}
+        raise HTTPException(status_code=503, detail=f"AI service error: {e}") from e
 
 async def generate_email_variants(company_name: str, role_title: str, jd_text: str, manager_name: str, requested_tone: str, include_news_hook: bool, portfolio_url: str, user_skills: list[str]) -> EmailResult:
     jd_emphasis = extract_jd_emphasis(jd_text)
